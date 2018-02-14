@@ -1,3 +1,5 @@
+Require Import Coq.ZArith.BinInt.
+Require Import Coq.Bool.Sumbool.
 Require Import bbv.WordScope.
 Require Import bbv.DepEqNat.
 Require Import riscv.RiscvBitWidths.
@@ -6,11 +8,35 @@ Require Import riscv.Decode.
 Require Import riscv.Program.
 Require Import Coq.Structures.OrderedTypeEx.
 
-(* Comments between ``double quotes'' are from quotes from
-   The RISC-V Instruction Set Manual
-   Volume I: User-Level ISA
-   Document Version 2.2
-*)
+Arguments sumbool_not {_} {_} (_).
+
+Open Scope Z_scope.
+
+Section comparisons.
+
+  Context {sz: nat}.
+  Variable a b: word sz.
+
+  (* a >= b <-> b <= a <-> ~ b > a <-> ~ a < b *)
+  Definition wge_dec := sumbool_not (wlt_dec a b).
+
+  (* a > b <-> b < a *)
+  Definition wgt_dec := wlt_dec b a.
+
+  (* a <= b <-> ~ b < a *)
+  Definition wle_dec := sumbool_not (wlt_dec b a).
+
+  (* a >= b <-> b <= a <-> ~ b > a <-> ~ a < b *)
+  Definition wsge_dec := sumbool_not (wslt_dec a b).
+
+  (* a > b <-> b < a *)
+  Definition wsgt_dec := wslt_dec b a.
+
+  (* a <= b <-> ~ b < a *)
+  Definition wsle_dec := sumbool_not (wslt_dec b a).
+
+End comparisons.
+
 
 Section Riscv.
 
@@ -18,173 +44,263 @@ Section Riscv.
 
   Notation Reg := PositiveOrderedTypeBits.t.
 
-  Definition signed_imm_to_word(v: word wimm): word wXLEN.
-    refine (nat_cast word _ (sext v (wXLEN - wimm))). bitwidth_omega.
+  Definition toZ: word wXLEN -> Z := @wordToZ wXLEN.
+
+  Definition fromZ: Z -> word wXLEN := ZToWord wXLEN.
+
+  Definition treat_signed_as_unsigned(a: Z): Z := match a with
+    | Z0 => Z0
+    | Zpos p => Zpos p
+    | Zneg p => (Zpower.two_power_nat wXLEN - Zpos p)
+    end.
+
+  Definition fromByte(w: word 8): word wXLEN.
+    refine (nat_cast _ _ (sext w (wXLEN - 8))). abstract bitwidth_omega.
   Defined.
 
-  Definition signed_jimm_to_word(v: word wupper): word wXLEN.
-    refine (nat_cast word _ (sext (extz v 1) (wXLEN - wupper - 1))). bitwidth_omega.
+  Definition fromHalf(w: word 16): word wXLEN.
+    refine (nat_cast _ _ (sext w (wXLEN - 16))). abstract bitwidth_omega.
   Defined.
 
-  Definition signed_bimm_to_word(v: word wimm): word wXLEN.
-    refine (nat_cast word _ (sext (extz v 1) (wXLEN - wimm - 1))). bitwidth_omega.
+  Definition fromWord(w: word 32): word wXLEN.
+    refine (nat_cast _ _ (sext w (wXLEN - 32))). abstract bitwidth_omega.
   Defined.
 
-  Definition upper_imm_to_word(v: word wupper): word wXLEN.
-    refine (nat_cast word _ (sext (extz v wimm) (wXLEN - wInstr))). bitwidth_omega.
+  Definition fromByteU(w: word 8): word wXLEN.
+    refine (nat_cast _ _ (zext w (wXLEN - 8))). abstract bitwidth_omega.
   Defined.
+
+  Definition fromHalfU(w: word 16): word wXLEN.
+    refine (nat_cast _ _ (zext w (wXLEN - 16))). abstract bitwidth_omega.
+  Defined.
+
+  Definition fromWordU(w: word 32): word wXLEN.
+    refine (nat_cast _ _ (zext w (wXLEN - 32))). abstract bitwidth_omega.
+  Defined.
+
+  Definition toByte(w: word wXLEN): word 8.
+    refine (split_lower (wXLEN - 8) 8 (nat_cast _ _ w)). abstract bitwidth_omega.
+  Defined.
+
+  Definition toHalf(w: word wXLEN): word 16.
+    refine (split_lower (wXLEN - 16) 16 (nat_cast _ _ w)). abstract bitwidth_omega.
+  Defined.
+
+  Definition toWord(w: word wXLEN): word 32.
+    refine (split_lower (wXLEN - 32) 32 (nat_cast _ _ w)). abstract bitwidth_omega.
+  Defined.
+
+  Axiom wneq: forall {sz:nat}, word sz -> word sz -> bool .
+  Axiom raiseException: forall {M: Type -> Type}, word wXLEN -> word wXLEN -> M unit.
 
   Definition execute{M: Type -> Type}{MM: Monad M}{RVS: RiscvState M}(i: Instruction): M unit :=
     match i with
-
-    (* ``ADDI adds the sign-extended 12-bit immediate to register rs1. Arithmetic overflow is
-       ignored and the result is simply the low XLEN bits of the result.'' *)
-    | Addi rd rs1 imm12 =>
-        x <- getRegister rs1;
-        setRegister rd (x ^+ (signed_imm_to_word imm12))
-
-    (* ``SLTI (set less than immediate) places the value 1 in register rd if register rs1 is
-       less than the sign-extended immediate when both are treated as signed numbers, else 0 is
-       written to rd.'' *)
-    | Slti rd rs1 imm12 =>
-        x <- getRegister rs1;
-        setRegister rd (if wslt_dec x (signed_imm_to_word imm12) then $1 else $0)
-
-    (* ``SLTIU is similar but compares the values as unsigned numbers (i.e., the immediate is
-       first sign-extended to XLEN bits then treated as an unsigned number).'' *)
-    | Sltiu rd rs1 imm12 =>
-        x <- getRegister rs1;
-        setRegister rd (if wlt_dec x (signed_imm_to_word imm12) then $1 else $0)
-
-    (* ``ANDI, ORI, XORI are logical operations that perform bitwise AND, OR, and XOR on register
-       rs1 and the sign-extended 12-bit immediate and place the result in rd.'' *)
-    | Andi rd rs1 imm12 =>
-        x <- getRegister rs1;
-        setRegister rd (wand x (signed_imm_to_word imm12))
-    | Ori rd rs1 imm12 =>
-        x <- getRegister rs1;
-        setRegister rd (wor x (signed_imm_to_word imm12))
-    | Xori rd rs1 imm12 =>
-        x <- getRegister rs1;
-        setRegister rd (wxor x (signed_imm_to_word imm12))
-
-    (* ``SLLI is a logical left shift (zeros are shifted into the lower bits);
-       SRLI is a logical right shift (zeros are shifted into the upper bits); and SRAI is an
-       arithmetic right shift (the original sign bit is copied into the vacated upper bits).'' *)
-    | Slli rd rs1 shamt =>
-        x <- getRegister rs1;
-        setRegister rd (wlshift x (wordToNat shamt))
-    | Srli rd rs1 shamt =>
-        x <- getRegister rs1;
-        setRegister rd (wrshift x (wordToNat shamt))
- (* | Srai rd rs1 shamt => *)
-
-    (* RV32I: ``LUI (load upper immediate) is used to build 32-bit constants and uses the U-type
-       format. LUI places the U-immediate value in the top 20 bits of the destination register rd,
-       filling in the lowest 12 bits with zeros.''
-       RV64I: ``LUI (load upper immediate) uses the same opcode as RV32I. LUI places the 20-bit
-       U-immediate into bits 31-12 of register rd and places zero in the lowest 12 bits. The 32-bit
-       result is sign-extended to 64 bits. *)
     | Lui rd imm20 =>
-        setRegister rd (upper_imm_to_word imm20)
-
-    (* ``ADD and SUB perform addition and subtraction respectively. Overflows are ignored and
-       the low XLEN bits of results are written to the destination. *)
-    | Add rd rs1 rs2 =>
-        x <- getRegister rs1;
-        y <- getRegister rs2;
-        setRegister rd (x ^+ y)
-    | Sub rd rs1 rs2 =>
-        x <- getRegister rs1;
-        y <- getRegister rs2;
-        setRegister rd (x ^- y)
-
-    (* ``SLT and SLTU perform signed and unsigned compares respectively, writing 1 to rd
-       if rs1 < rs2, 0 otherwise.'' *)
-    | Slt rd rs1 rs2 =>
-        x <- getRegister rs1;
-        y <- getRegister rs2;
-        setRegister rd (if wslt_dec x y then $1 else $0)
-    | Sltu rd rs1 rs2 =>
-        x <- getRegister rs1;
-        y <- getRegister rs2;
-        setRegister rd (if wlt_dec x y then $1 else $0)
-
-    (* ``AND, OR, and XOR perform bitwise logical operations.'' *)
-    | And rd rs1 rs2 =>
-        x <- getRegister rs1;
-        y <- getRegister rs2;
-        setRegister rd (wand x y)
-    | Or rd rs1 rs2 =>
-        x <- getRegister rs1;
-        y <- getRegister rs2;
-        setRegister rd (wor x y)
-    | Xor rd rs1 rs2 =>
-        x <- getRegister rs1;
-        y <- getRegister rs2;
-        setRegister rd (wxor x y)
-
-    (* ``The jump and link (JAL) instruction uses the J-type format, where the J-immediate encodes
-       a signed offset in multiples of 2 bytes. The offset is sign-extended and added to the pc to
-       form the jump target address. Jumps can therefore target a +/- 1 MiB range. JAL stores the
-       address of the instruction following the jump (pc+4) into register rd.'' *)
+      ( ( setRegister rd ) (fromZ imm20) )
+    | Auipc rd oimm20 =>
+      pc <- getPC;
+        ( ( setRegister rd ) (fromZ (oimm20 + pc)) )
     | Jal rd jimm20 =>
+      pc <- getPC;
+        let newPC := (pc + (  jimm20 )) in
+        (if dec (Z.modulo newPC 4 <> 0)
+         then ( ( raiseException $0 ) $0 )
+         else ( ( setRegister rd ) (fromZ (pc + 4)));;
+                                                    ( setPC newPC ))
+    | Jalr rd rs1 oimm12 =>
+      x <- ( getRegister rs1 );
         pc <- getPC;
-        setRegister rd (pc ^+ $4);;
-        setPC (pc ^+ (signed_jimm_to_word jimm20))
-    (* Note: The following is not yet implemented:
-       ``The JAL and JALR instructions will generate a misaligned instruction fetch exception
-       if the target address is not aligned to a four-byte boundary.''
-       Also applies to the branch instructions. *)
-
-    (* ``All branch instructions use the B-type instruction format. The 12-bit B-immediate encodes
-       signed offsets in multiples of 2, and is added to the current pc to give the target address.
-       The conditional branch range is +/- 4 KiB.'' *)
-
-    (* ``BEQ and BNE take the branch if registers rs1 and rs2 are equal or unequal respectively.'' *)
+        let newPC := (toZ x + (  oimm12 )) in
+        (if dec (Z.modulo newPC 4 <> 0)
+         then ( ( raiseException $0 ) $0 )
+         else ( ( setRegister rd ) (fromZ (pc + 4)));;
+                                                    ( setPC newPC ))
     | Beq rs1 rs2 sbimm12 =>
-        x <- getRegister rs1;
-        y <- getRegister rs2;
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
         pc <- getPC;
-        if weq x y then (setPC (pc ^+ (signed_bimm_to_word sbimm12))) else Return tt
+        (if (weq x y)
+         then let newPC := (pc + (  sbimm12 )) in
+              (if dec (Z.modulo newPC 4 <> 0)
+               then ( ( raiseException $0 ) $0 )
+               else ( setPC newPC ))
+         else (Return tt))
     | Bne rs1 rs2 sbimm12 =>
-        x <- getRegister rs1;
-        y <- getRegister rs2;
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
         pc <- getPC;
-        if weq x y then Return tt else (setPC (pc ^+ (signed_bimm_to_word sbimm12)))
-
-    (* ``BLT and BLTU take the branch if rs1 is less than rs2, using signed and unsigned comparison
-       respectively.'' *)
+        (if (wneq x y)
+         then let addr := (pc + (  sbimm12 )) in
+              (if dec (Z.modulo addr 4 <> 0)
+               then ( ( raiseException $0 ) $0 )
+               else ( setPC addr ))
+         else (Return tt))
     | Blt rs1 rs2 sbimm12 =>
-        x <- getRegister rs1;
-        y <- getRegister rs2;
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
         pc <- getPC;
-        if wslt_dec x y then (setPC (pc ^+ (signed_bimm_to_word sbimm12))) else Return tt
-    | Bltu rs1 rs2 sbimm12 =>
-        x <- getRegister rs1;
-        y <- getRegister rs2;
-        pc <- getPC;
-        if wlt_dec x y then (setPC (pc ^+ (signed_bimm_to_word sbimm12))) else Return tt
-
-    (* ``BGE and BGEU take the branch if rs1 is greater than or equal to rs2, using signed and
-       unsigned comparison respectively.'' *)
+        (if (wslt_dec x y)
+         then let addr := (pc + (  sbimm12 )) in
+              (if dec (Z.modulo addr 4 <> 0)
+               then ( ( raiseException $0 ) $0 )
+               else ( setPC addr ))
+         else (Return tt))
     | Bge rs1 rs2 sbimm12 =>
-        x <- getRegister rs1;
-        y <- getRegister rs2;
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
         pc <- getPC;
-        if wslt_dec x y then Return tt else (setPC (pc ^+ (signed_bimm_to_word sbimm12)))
+        (if (wsge_dec x y)
+         then let addr := (pc + (  sbimm12 )) in
+              (if dec (Z.modulo addr 4 <> 0)
+               then ( ( raiseException $0 ) $0 )
+               else ( setPC addr ))
+         else (Return tt))
+    | Bltu rs1 rs2 sbimm12 =>
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
+        pc <- getPC;
+        (if ( ( wlt_dec x ) y )
+         then let addr := (pc + (  sbimm12 )) in
+              (if dec (Z.modulo addr 4 <> 0)
+               then ( ( raiseException $0 ) $0 )
+               else ( setPC addr ))
+         else (Return tt))
     | Bgeu rs1 rs2 sbimm12 =>
-        x <- getRegister rs1;
-        y <- getRegister rs2;
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
         pc <- getPC;
-        if wlt_dec x y then Return tt else (setPC (pc ^+ (signed_bimm_to_word sbimm12)))
-
-    (* ``MUL performs an XLEN-bit x XLEN-bit multiplication and places the lower XLEN bits in the
-       destination register.'' *)
-    | Mul rd rs1 rs2 =>
-        x <- getRegister rs1;
-        y <- getRegister rs2;
-        setRegister rd (x ^* y)
+        (if ( Sumbool.sumbool_not ( ( wlt_dec x ) y ) )
+         then let addr := (pc + (  sbimm12 )) in
+              (if dec (Z.modulo addr 4 <> 0)
+               then ( ( raiseException $0 ) $0 )
+               else ( setPC addr ))
+         else (Return tt))
+     | Lb rd rs1 oimm12 => 
+     a <- ( getRegister rs1 ); 
+     x <- ( loadByte (toZ a + (  oimm12 )) ); 
+     ( ( setRegister rd ) (fromByte x) ) 
+     | Lh rd rs1 oimm12 => 
+     a <- ( getRegister rs1 ); 
+     let addr := (toZ a + (  oimm12 )) in 
+     (if dec (Z.modulo addr 2 <> 0)
+      then ( ( raiseException $0 ) $4 ) 
+      else x <- ( loadHalf addr ); 
+     ( ( setRegister rd ) (fromHalf x) )) 
+     | Lw rd rs1 oimm12 => 
+     a <- ( getRegister rs1 ); 
+     let addr := (toZ a + (  oimm12 )) in 
+     (if dec (Z.modulo addr 4 <> 0)
+      then ( ( raiseException $0 ) $4 ) 
+      else x <- ( loadWord addr ); 
+     ( ( setRegister rd ) (fromWord x) )) 
+     | Lbu rd rs1 oimm12 => 
+     a <- ( getRegister rs1 ); 
+     x <- ( loadByte (a + (  oimm12 )) ); 
+     ( ( setRegister rd ) (  x ) ) 
+     | Lhu rd rs1 oimm12 => 
+     a <- ( getRegister rs1 ); 
+     let addr := (a + (  oimm12 )) in 
+     (if dec (Z.modulo addr 2 <> 0)
+      then ( ( raiseException $0 ) $4 ) 
+      else x <- ( loadHalf addr ); 
+     ( ( setRegister rd ) (  x ) )) 
+     | Sb rs1 rs2 simm12 => 
+     a <- ( getRegister rs1 ); 
+     x <- ( getRegister rs2 ); 
+     ( ( storeByte (a + (  simm12 )) ) x ) 
+     | Sh rs1 rs2 simm12 => 
+     a <- ( getRegister rs1 ); 
+     let addr := (a + (  simm12 )) in 
+     (if (wneq ( ( wmod addr ) $2 ) $0) 
+      then ( ( raiseException $0 ) $6 ) 
+      else x <- ( getRegister rs2 ); 
+     ( ( storeHalf addr ) x )) 
+     | Sw rs1 rs2 simm12 => 
+     a <- ( getRegister rs1 ); 
+     let addr := (a + (  simm12 )) in 
+     (if (wneq ( ( wmod addr ) $4 ) $0) 
+      then ( ( raiseException $0 ) $6 ) 
+      else x <- ( getRegister rs2 ); 
+     ( ( storeWord addr ) x ))
+    | Addi rd rs1 imm12 =>
+      x <- ( getRegister rs1 );
+        ( ( setRegister rd ) (fromZ (toZ x + (  imm12 )) ))
+    | Slti rd rs1 imm12 =>
+      x <- ( getRegister rs1 );
+        ( ( setRegister rd ) (if dec (toZ x < imm12)
+                              then $1
+                              else $0) )
+    | Sltiu rd rs1 imm12 =>
+      x <- ( getRegister rs1 );
+        ( ( setRegister rd ) (if dec (toZ x < treat_signed_as_unsigned imm12)
+                              then $1
+                              else $0) )
+    | Xori rd rs1 imm12 =>
+      x <- ( getRegister rs1 );
+        ( ( setRegister rd ) (fromZ (Z.lxor (toZ x) imm12)))
+    | Ori rd rs1 imm12 =>
+      x <- ( getRegister rs1 );
+        ( ( setRegister rd ) (fromZ (Z.lor (toZ x) imm12)))
+    | Andi rd rs1 imm12 =>
+      x <- ( getRegister rs1 );
+        ( ( setRegister rd ) (fromZ (Z.land (toZ x) imm12)))
+    | Slli rd rs1 shamt6 =>
+      x <- ( getRegister rs1 );
+        ( ( setRegister rd ) ( ( wlshift x ) shamt6 ) )
+    | Srli rd rs1 shamt6 =>
+      x <- ( getRegister rs1 );
+        ( ( setRegister rd ) ( ( wrshift x ) shamt6 ) )
+    | Srai rd rs1 shamt6 =>
+      x <- ( getRegister rs1 );
+        ( ( setRegister rd ) ( ( wrshifta x ) shamt6 ) )
+    | Add rd rs1 rs2 =>
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
+        ( ( setRegister rd ) (fromZ (toZ x + toZ y)) )
+    | Sub rd rs1 rs2 =>
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
+        ( ( setRegister rd ) (fromZ (toZ x - toZ y)) )
+    | Sll rd rs1 rs2 =>
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
+        ( ( setRegister rd ) ( ( wlshift x ) (wordToNat y) ) )
+    | Slt rd rs1 rs2 =>
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
+        ( ( setRegister rd ) (if (wslt_dec x y)
+                              then $1
+                              else $0) )
+    | Sltu rd rs1 rs2 =>
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
+        ( ( setRegister rd ) (if ( ( wlt_dec x ) y )
+                              then $1
+                              else $0) )
+    | Xor rd rs1 rs2 =>
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
+        ( ( setRegister rd ) ( ( wxor x ) y ) )
+    | Or rd rs1 rs2 =>
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
+        ( ( setRegister rd ) (wor x y) )
+    | Srl rd rs1 rs2 =>
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
+        ( ( setRegister rd ) ( ( wrshift x ) (wordToNat y) ) )
+    | Sra rd rs1 rs2 =>
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
+        ( ( setRegister rd ) ( ( wrshifta x ) (wordToNat y) ) )
+    | And rd rs1 rs2 =>
+      x <- ( getRegister rs1 );
+        y <- ( getRegister rs2 );
+        ( ( setRegister rd ) (wand x y) )
+    | _ => Return tt
     end.
 
+
 End Riscv.
+
+Close Scope Z_scope.
