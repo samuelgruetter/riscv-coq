@@ -1,6 +1,5 @@
 Require Import bbv.WordScope.
 Require Import bbv.DepEqNat.
-Require Import riscv.NameWithEq.
 Require Import riscv.RiscvBitWidths.
 Require Import riscv.Monad.
 Require Import riscv.StateMonad.
@@ -8,15 +7,17 @@ Require Import riscv.Decode.
 Require Import riscv.Program.
 Require Import riscv.Execute.
 Require Import riscv.PowerFunc.
+Require Export riscv.Decidable.
 Require Import Coq.Lists.List.
+Require Import Coq.Structures.OrderedTypeEx.
+Require Import Coq.Numbers.BinNums.
+Local Open Scope positive.
 
 Section Riscv.
 
   Context {B: RiscvBitWidths}.
 
-  Context {Name: NameWithEq}. (* register name *)
-  Notation Reg := (@name Name).
-  Existing Instance eq_name_dec.
+  Notation Reg := PositiveOrderedTypeBits.t.
 
   Definition run1{M: Type -> Type}{MM: Monad M}{RVS: RiscvState M}: M unit :=
     pc <- getPC;

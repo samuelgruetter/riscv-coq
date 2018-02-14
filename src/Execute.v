@@ -2,11 +2,11 @@ Require Import Coq.ZArith.BinInt.
 Require Import Coq.Bool.Sumbool.
 Require Import bbv.WordScope.
 Require Import bbv.DepEqNat.
-Require Import riscv.NameWithEq.
 Require Import riscv.RiscvBitWidths.
 Require Import riscv.Monad.
 Require Import riscv.Decode.
 Require Import riscv.Program.
+Require Import Coq.Structures.OrderedTypeEx.
 
 Arguments sumbool_not {_} {_} (_).
 
@@ -42,9 +42,7 @@ Section Riscv.
 
   Context {B: RiscvBitWidths}.
 
-  Context {Name: NameWithEq}. (* register name *)
-  Notation Reg := (@name Name).
-  Existing Instance eq_name_dec.
+  Notation Reg := PositiveOrderedTypeBits.t.
 
   Definition toZ: word wXLEN -> Z := @wordToZ wXLEN.
 

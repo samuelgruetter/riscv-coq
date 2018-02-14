@@ -6,6 +6,8 @@ Require Import bbv.WordScope.
 Require Import riscv.Decidable.
 Require Import bbv.DepEqNat.
 Require Import riscv.RiscvBitWidths.
+Require Import Coq.Structures.OrderedTypeEx.
+Require Import Coq.Numbers.BinNums.
 
 Definition opcode_LOAD      := WO~0~0~0~0~0~1~1.
 Definition opcode_LOAD_FP   := WO~0~0~0~0~1~1~1.
@@ -132,7 +134,7 @@ Inductive Instruction : Set :=
 
   (* | Fence (pred : Z)(succ : Z): Instruction *)
   | Fence_i:Instruction
-  
+
   | Addi (rd: Register)(rs1: Register)(imm12: Z) : Instruction
   | Slli (rd: Register)(rs1: Register)(shamt6: nat) : Instruction
   | Slti (rd: Register)(rs1: Register)(imm12: Z) : Instruction

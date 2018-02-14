@@ -4,6 +4,8 @@
 Require Import Coq.Arith.PeanoNat.
 Require Import Coq.Arith.Compare_dec.
 Require Import Coq.ZArith.BinInt.
+Require Import Coq.Structures.OrderedTypeEx.
+Require Import Coq.Numbers.BinNums.
 Require Import bbv.Word.
 
 Class Decidable (P : Prop) := dec : {P} + {~P}.
@@ -23,6 +25,8 @@ Global Instance dec_lt_Z : DecidableRel BinInt.Z.lt := ZArith_dec.Z_lt_dec.
 Global Instance dec_le_Z : DecidableRel BinInt.Z.le := ZArith_dec.Z_le_dec.
 Global Instance dec_gt_Z : DecidableRel BinInt.Z.gt := ZArith_dec.Z_gt_dec.
 Global Instance dec_ge_Z : DecidableRel BinInt.Z.ge := ZArith_dec.Z_ge_dec.
+
+Global Instance dec_eq_positive: DecidableEq positive := PositiveOrderedTypeBits.eq_dec.
 
 Global Instance decidable_eq_option {A} `{DecidableEq A}: DecidableEq (option A).
   intros. unfold Decidable. destruct x; destruct y.
