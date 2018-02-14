@@ -1,15 +1,13 @@
 Require Import bbv.Word.
 Require Import riscv.RiscvBitWidths.
-Require Import riscv.NameWithEq.
 Require Import riscv.Decode.
+Require Import Coq.Structures.OrderedTypeEx.
 
 Section Riscv.
 
   Context {B: RiscvBitWidths}.
 
-  Context {Name: NameWithEq}. (* register name *)
-  Notation Reg := (@name Name).
-  Existing Instance eq_name_dec.
+  Notation Reg := PositiveOrderedTypeBits.t.
 
   Class RiscvState(M: Type -> Type) := mkRiscvState {
     getRegister: Register -> M (word wXLEN);

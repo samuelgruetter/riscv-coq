@@ -1,6 +1,5 @@
 Require Export bbv.Word.
 Require Export bbv.DepEqNat.
-Require Export riscv.NameWithEq.
 Require Export riscv.RiscvBitWidths.
 Require Export riscv.Monad.
 Require Export riscv.StateMonad.

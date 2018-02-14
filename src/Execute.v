@@ -1,10 +1,10 @@
 Require Import bbv.WordScope.
 Require Import bbv.DepEqNat.
-Require Import riscv.NameWithEq.
 Require Import riscv.RiscvBitWidths.
 Require Import riscv.Monad.
 Require Import riscv.Decode.
 Require Import riscv.Program.
+Require Import Coq.Structures.OrderedTypeEx.
 
 (* Comments between ``double quotes'' are from quotes from
    The RISC-V Instruction Set Manual
@@ -16,9 +16,7 @@ Section Riscv.
 
   Context {B: RiscvBitWidths}.
 
-  Context {Name: NameWithEq}. (* register name *)
-  Notation Reg := (@name Name).
-  Existing Instance eq_name_dec.
+  Notation Reg := PositiveOrderedTypeBits.t.
 
   Definition signed_imm_to_word(v: word wimm): word wXLEN.
     refine (nat_cast word _ (sext v (wXLEN - wimm))). bitwidth_omega.

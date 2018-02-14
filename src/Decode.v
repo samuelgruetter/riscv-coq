@@ -1,14 +1,15 @@
 Require Import bbv.Word.
 Require Import riscv.RiscvBitWidths.
-Require Import riscv.NameWithEq.
+Require Import Coq.Structures.OrderedTypeEx.
+Require Import Coq.Numbers.BinNums.
+Local Open Scope positive.
 
 Section Riscv.
 
   Context {B: RiscvBitWidths}.
 
-  Context {Name: NameWithEq}. (* register name *)
-  Notation Reg := (@name Name).
-  Existing Instance eq_name_dec.
+  (** Import positive numbers as bits with Eq and Ord *)
+  Notation Reg := PositiveOrderedTypeBits.t.
 
   Inductive Register: Set :=
     | RegO: Register

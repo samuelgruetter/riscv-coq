@@ -2,17 +2,18 @@ Require Import Coq.Lists.List.
 Import ListNotations.
 Require Import riscv.Riscv.
 Require Import riscv.RiscvBitWidths32.
+Require Import Coq.Structures.OrderedTypeEx.
+Require Import Coq.Numbers.BinNums.
 
+Local Open Scope positive.
 
-Instance NatName: NameWithEq := {| name := nat |}.
+Definition var: Set := PositiveOrderedTypeBits.t.
+Definition Reg: Set := PositiveOrderedTypeBits.t.
 
-Definition var: Set := (@name NatName).
-Definition Reg: Set := (@name NatName).
-
-Definition var_a: var := 0.
-Definition var_b: var := 1.
-Definition var_c: var := 2.
-Definition var_i: var := 3.
+Definition var_a: var := 1.
+Definition var_b: var := 2.
+Definition var_c: var := 3.
+Definition var_i: var := 4.
 
 (* stores fib(6) into register var_b (inefficient compiler-generated assembly) *)
 Definition fib6_riscv: list Instruction := [
@@ -56,6 +57,7 @@ Definition fib6_L_res(fuel: nat): word wXLEN :=
 
 Transparent wlt_dec.
 
+Local Close Scope positive.
 Lemma fib6_res_is_13_by_running_it: exists fuel, fib6_L_res fuel = $13.
   exists 200. cbv. reflexivity.
 Qed.
