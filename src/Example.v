@@ -17,29 +17,29 @@ Definition var_i: var := 4.
 
 (* stores fib(6) into register var_b (inefficient compiler-generated assembly) *)
 Definition fib6_riscv: list Instruction := [
-  Addi (RegS 4) RegO $ (0);
-  Add (RegS var_a) RegO (RegS 4);
   Addi (RegS 5) RegO $ (1);
-  Add (RegS var_b) RegO (RegS 5);
-  Addi (RegS 6) RegO $ (0);
-  Add (RegS var_i) RegO (RegS 6);
-  Add (RegS 7) RegO (RegS var_i);
-  Addi (RegS 8) RegO $ (6);
-  Sltu (RegS 9) (RegS 7) (RegS 8);
-  Beq (RegS 9) RegO ($ (2) ^* $ (13));
-  Add (RegS 10) RegO (RegS var_a);
-  Add (RegS 11) RegO (RegS var_b);
-  Add (RegS 12) (RegS 10) (RegS 11);
-  Add (RegS var_c) RegO (RegS 12);
-  Add (RegS 13) RegO (RegS var_b);
-  Add (RegS var_a) RegO (RegS 13);
-  Add (RegS 14) RegO (RegS var_c);
-  Add (RegS var_b) RegO (RegS 14);
-  Add (RegS 15) RegO (RegS var_i);
-  Addi (RegS 16) RegO $ (1);
-  Add (RegS 17) (RegS 15) (RegS 16);
-  Add (RegS var_i) RegO (RegS 17);
-  Jal RegO (^~ ($ (2) ^* $ (17)))
+  Add (RegS var_a) RegO (RegS 5);
+  Addi (RegS 6) RegO $ (2);
+  Add (RegS var_b) RegO (RegS 6);
+  Addi (RegS 7) RegO $ (1);
+  Add (RegS var_i) RegO (RegS 7);
+  Add (RegS 8) RegO (RegS var_i);
+  Addi (RegS 9) RegO $ (7);
+  Sltu (RegS 10) (RegS 8) (RegS 9);
+  Beq (RegS 10) RegO ($ (3) ^* $ (14));
+  Add (RegS 11) RegO (RegS var_a);
+  Add (RegS 12) RegO (RegS var_b);
+  Add (RegS 13) (RegS 11) (RegS 12);
+  Add (RegS var_c) RegO (RegS 13);
+  Add (RegS 14) RegO (RegS var_b);
+  Add (RegS var_a) RegO (RegS 14);
+  Add (RegS 15) RegO (RegS var_c);
+  Add (RegS var_b) RegO (RegS 15);
+  Add (RegS 16) RegO (RegS var_i);
+  Addi (RegS 17) RegO $ (2);
+  Add (RegS 18) (RegS 16) (RegS 17);
+  Add (RegS var_i) RegO (RegS 18);
+  Jal RegO (^~ ($ (3) ^* $ (18)))
 ].
 
 Definition initialRiscvMachine(imem: list Instruction): RiscvMachine := {|
