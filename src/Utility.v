@@ -205,6 +205,5 @@ Instance MachineWidth64: MachineWidth (word 64) := {|
 |}.
 
 Instance MachineWidthInst{B: RiscvBitWidths}: MachineWidth (word wXLEN).
-  unfold wXLEN.
   destruct bitwidth; [exact MachineWidth32 | exact MachineWidth64].
 Defined.

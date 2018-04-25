@@ -5,26 +5,20 @@ Inductive RiscvBitWidth := Bitwidth32 | Bitwidth64.
 
 Class RiscvBitWidths := bitwidth: RiscvBitWidth.
 
-Section Widths.
+Notation wXLEN :=
+  (match bitwidth with
+   | Bitwidth32 => 32
+   | Bitwidth64 => 64
+   end).
 
-  Context {B: RiscvBitWidths}.
+Notation log2wXLEN :=
+  (match bitwidth with
+   | Bitwidth32 => 5
+   | Bitwidth64 => 6
+   end).
 
-  Definition wXLEN: nat :=
-    match bitwidth with
-    | Bitwidth32 => 32
-    | Bitwidth64 => 64
-    end.
-
-  Definition log2wXLEN: nat :=
-    match bitwidth with
-    | Bitwidth32 => 5
-    | Bitwidth64 => 6
-    end.
-
-  Definition wXLEN_in_bytes: nat :=
-    match bitwidth with
-    | Bitwidth32 => 4
-    | Bitwidth64 => 8
-    end.
-  
-End Widths.
+Notation wXLEN_in_bytes :=
+  (match bitwidth with
+   | Bitwidth32 => 4
+   | Bitwidth64 => 8
+   end).
