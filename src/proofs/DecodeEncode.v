@@ -4,6 +4,7 @@ Require Import riscv.Decode.
 Require Import riscv.encode.Encode.
 Require Import riscv.Utility.
 Require Import Coq.omega.Omega.
+Require Import Coq.micromega.Lia.
 
 Local Open Scope bool_scope.
 Local Open Scope Z_scope.
@@ -141,6 +142,127 @@ Ltac somega_pre :=
 (* omega which understands bitSlice and shift *)
 Ltac somega := somega_pre; omega.
 
+Lemma invert_encode_SB: forall {opcode rs1 rs2 funct3 sbimm12},
+  verify_SB opcode rs1 rs2 funct3 sbimm12 ->
+  forall inst,
+  encode_SB opcode rs1 rs2 funct3 sbimm12 = inst ->
+  opcode = bitSlice inst 0 7 /\
+  funct3 = bitSlice inst 12 15 /\
+  rs1 = bitSlice inst 15 20 /\
+  rs2 = bitSlice inst 20 25 /\
+  sbimm12 = signExtend 13 (Z.shiftl (bitSlice inst 31 32) 12 <|>
+                           Z.shiftl (bitSlice inst 25 31) 5 <|>
+                           Z.shiftl (bitSlice inst 8 12) 1  <|>
+                           Z.shiftl (bitSlice inst 7 8) 11).
+Proof.
+  intros. unfold encode_SB, verify_SB in *.
+  repeat match goal with
+         | H: _ /\ _ |- _ => destruct H
+         end.
+  assert (2 <> 0) as K by omega.
+  pose proof (Z.div_mod sbimm12 2 K) as P.
+  rewrite H5 in P.
+  rewrite Z.add_0_r in P.
+  rewrite P in *.
+  remember (sbimm12 / 2) as sbimm12'.
+  clear Heqsbimm12' K P H5 sbimm12.
+  rewrite? or_to_plus.
+  - somega_pre.
+    + (*
+      nia. (* nia takes forever *)
+      lia. (* lia takes forever *)
+      omega. (* omega uses excessive amounts of memory *)
+       *)
+      (* DEMO HERE: *)
+(** BEGIN goal negation code *)
+
+Require Import Coq.Logic.Classical_Prop.
+
+Definition marker(P: Prop): Prop := P.
+
+Lemma E: forall A (P: A -> Prop), (exists a: A, ~ P a) <-> ~ forall (a: A), P a.
+Proof.                                                                                
+  intros. split.
+  - intros. destruct H as [a H]. intro. apply H. auto.
+  - intro. destruct (classic (exists a : A, ~ P a)) as [C | C]; [assumption|].
+    exfalso. apply H. intro. destruct (classic (P a)) as [D | D]; [assumption |].
+    exfalso. apply C. exists a. assumption.
+Qed.
+
+Lemma K: forall (P Q: Prop), (~ marker (P -> Q)) <-> marker (~ (P -> Q)).
+Proof.
+  cbv [marker]. intros. reflexivity. 
+Qed.
+
+Ltac countZ t :=
+  lazymatch t with
+  | forall (x: Z), @?t' x =>
+    let a := eval cbv beta in (t' 0) in
+        let r := countZ a in constr:(S r)
+  | _ => constr:(O)
+  end.
+
+Ltac repeatN N f :=
+  match N with
+  | S ?n => f; repeatN n f
+  | O => idtac
+  end.
+
+Ltac negate_goal :=
+  repeat match goal with
+         | H: ?T |- _ => match T with
+                         | Z => fail 1
+                         | _ => revert H
+                         end
+         end;
+  match goal with
+  | |- ?P => change (marker P)
+  end;
+  repeat match goal with
+         | H: _ |- _ => revert H
+         end;
+  match goal with
+  | |- ?P => assert (~P); [|admit]
+  end;
+  match goal with
+  | |- ~ ?P => let r := countZ P in repeatN r ltac:(setoid_rewrite <- E)
+  end;
+  setoid_rewrite K.
+
+Set Printing Depth 10000.
+
+negate_goal.
+
+(** END goal negation code *)
+      
+(** BEGIN notations *)
+
+Notation "'and' A B" := (Logic.and A B) (at level 10, A at level 0, B at level 0).
+Notation "'or' A B" := (Logic.or A B) (at level 10, A at level 0, B at level 0).
+Notation "+ A B" := (Z.add A B) (at level 10, A at level 0, B at level 0).
+Notation "< A B" := (Z.lt A B) (at level 10, A at level 0, B at level 0).
+Notation "<= A B" := (Z.le A B) (at level 10, A at level 0, B at level 0).
+Notation "- A B" := (Z.sub A B) (at level 10, A at level 0, B at level 0).
+Notation "* A B" := (Z.mul A B) (at level 10, A at level 0, B at level 0, format " *  A  B").
+Notation "= A B" := (@eq Z A B) (at level 10, A at level 0, B at level 0).
+Notation "'not' A" := (not A) (at level 10, A at level 0).
+Notation "'(declare-const' a 'Int)' body" :=
+  (ex (fun (a: Z) => body))
+    (at level 10, body at level 10,
+     format "(declare-const  a  Int) '//' body").
+Notation "'(assert' P ')'" := (marker P)
+                                (at level 10, P at level 0,
+                                 format "(assert  P )").
+Notation "- 0 a" := (Z.opp a) (at level 10, a at level 10).
+Notation "'or' '(not' A ')' B" := (A -> B) (at level 10, A at level 0, B at level 0,
+                                            format "or  (not  A )  B").
+
+idtac.
+
+(** END notations *)
+
+Admitted.
+
 Lemma invert_encode_InvalidInstruction: forall i,
   verify_Invalid i ->
   forall inst,
@@ -262,36 +384,6 @@ Proof.
       apply Z.mod_pow2_bits_high.
       omega.
 Qed.
-
-Lemma invert_encode_SB: forall {opcode rs1 rs2 funct3 sbimm12},
-  verify_SB opcode rs1 rs2 funct3 sbimm12 ->
-  forall inst,
-  encode_SB opcode rs1 rs2 funct3 sbimm12 = inst ->
-  opcode = bitSlice inst 0 7 /\
-  funct3 = bitSlice inst 12 15 /\
-  rs1 = bitSlice inst 15 20 /\
-  rs2 = bitSlice inst 20 25 /\
-  sbimm12 = signExtend 13 (Z.shiftl (bitSlice inst 31 32) 12 <|>
-                           Z.shiftl (bitSlice inst 25 31) 5 <|>
-                           Z.shiftl (bitSlice inst 8 12) 1  <|>
-                           Z.shiftl (bitSlice inst 7 8) 11).
-Proof.
-  intros. unfold encode_SB, verify_SB in *.
-  repeat match goal with
-         | H: _ /\ _ |- _ => destruct H
-         end.
-  assert (2 <> 0) as K by omega.
-  pose proof (Z.div_mod sbimm12 2 K) as P.
-  rewrite H5 in P.
-  rewrite Z.add_0_r in P.
-  rewrite P in *.
-  remember (sbimm12 / 2) as sbimm12'.
-  clear Heqsbimm12' K P H5 sbimm12.
-  rewrite? or_to_plus.
-  - somega_pre.
-    + (* omega uses excessive amounts of memory *)
-
-Admitted.
 
 Lemma invert_encode_U: forall {opcode rd imm20},
   verify_U opcode rd imm20 ->
