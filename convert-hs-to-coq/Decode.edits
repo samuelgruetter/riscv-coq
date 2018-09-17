@@ -41,6 +41,7 @@ skip Decode.Default__InstructionI
 skip Decode.Default__InstructionCSR
 skip Decode.Default__InstructionA
 skip Decode.Default__InstructionA64
+skip Decode.Default__Instruction
 
 skip Decode.rd
 skip Decode.rs1
